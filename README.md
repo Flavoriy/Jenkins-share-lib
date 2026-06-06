@@ -88,7 +88,7 @@ Vao `Manage Jenkins` -> `System` -> `Global Trusted Pipeline Libraries`, them li
 
 ### Credentials can co
 
-- `ghcr-token`: Jenkins credential kieu `Username with password`; username la GitHub username, password la GitHub token co quyen push package len GHCR.
+- `ghcr-token`: Jenkins credential kieu `Username with password`; username la GitHub username, password la GitHub token co quyen push package len GHCR. Neu dung `Secret text`, truyen them `credentialType: 'string'` va `username` khi goi `dockerPush`.
 - `github-token`: Jenkins credential kieu `Username with password`; username la GitHub username, password la GitHub token co quyen push manifest repo.
 - `jira-token`: Jenkins credential kieu `Username with password`; username la Jira user/email, password la Jira token.
 - `argocd-token`: Jenkins credential kieu `Secret text` neu muon verify bang ArgoCD token.
