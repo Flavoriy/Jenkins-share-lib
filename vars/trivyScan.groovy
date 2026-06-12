@@ -1,6 +1,7 @@
 def call(Map config = [:]) {
     Map cfg = [
         stageName: 'Trivy Scan',
+        wrapStage: true,
         scanType: 'image',
         target: '',
         imageRef: '',
@@ -19,7 +20,7 @@ def call(Map config = [:]) {
     }
     ConfigValidator.requireValue(this, target, 'target or imageRef')
 
-    stage(cfg.stageName as String) {
+    Closure body = {
         String ignoreUnfixed = (cfg.ignoreUnfixed as boolean) ? '--ignore-unfixed' : ''
         String output = cfg.output?.toString()?.trim()
             ? "--output ${ConfigValidator.shellQuote(cfg.output as String)}"
@@ -30,4 +31,17 @@ def call(Map config = [:]) {
             trivy '${cfg.scanType}' ${ignoreUnfixed} --exit-code ${cfg.exitCode as int} --severity '${cfg.severity}' --format '${cfg.format}' ${output} '${target}'
         """
     }
+
+    runWithOptionalStage(cfg, body)
+}
+
+private void runWithOptionalStage(Map cfg, Closure body) {
+    if (cfg.wrapStage == null || cfg.wrapStage.toString().toBoolean()) {
+        stage(cfg.stageName as String) {
+            body.call()
+        }
+        return
+    }
+
+    body.call()
 }

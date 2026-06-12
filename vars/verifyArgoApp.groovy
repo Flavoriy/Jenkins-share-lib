@@ -1,6 +1,7 @@
 def call(Map config = [:]) {
     Map cfg = [
         stageName: 'Verify ArgoCD App',
+        wrapStage: true,
         appName: '',
         server: '',
         tokenCredentialsId: '',
@@ -16,7 +17,7 @@ def call(Map config = [:]) {
     ConfigValidator.requireUnix(this, 'verifyArgoApp')
     ConfigValidator.requireValue(this, cfg.appName, 'appName')
 
-    stage(cfg.stageName as String) {
+    Closure body = {
         Closure verify = {
             String args = argocdArgs(cfg)
             String refresh = (cfg.refresh as boolean) ? '--refresh' : ''
@@ -25,6 +26,7 @@ def call(Map config = [:]) {
 
             sh """
                 set -e
+                set +x
                 argocd app get '${cfg.appName}' ${args} ${refresh}
                 argocd app wait '${cfg.appName}' ${args} ${health} ${sync} --timeout ${cfg.timeoutSeconds as int}
             """
@@ -33,12 +35,17 @@ def call(Map config = [:]) {
             if (imageRef) {
                 sh """
                     set -e
+                    set +x
                     argocd app manifests '${cfg.appName}' ${args} | grep -F '${imageRef}'
                 """
             }
         }
 
-        if (cfg.tokenCredentialsId?.toString()?.trim()) {
+        if (env.ARGOCD_AUTH_TOKEN?.trim() || env.ARGOCD_TOKEN?.trim()) {
+            withEnv(["ARGOCD_AUTH_TOKEN=${env.ARGOCD_AUTH_TOKEN ?: env.ARGOCD_TOKEN}"]) {
+                verify.call()
+            }
+        } else if (cfg.tokenCredentialsId?.toString()?.trim()) {
             withCredentials([string(credentialsId: cfg.tokenCredentialsId as String, variable: 'ARGOCD_AUTH_TOKEN')]) {
                 verify.call()
             }
@@ -46,6 +53,8 @@ def call(Map config = [:]) {
             verify.call()
         }
     }
+
+    runWithOptionalStage(cfg, body)
 }
 
 private String argocdArgs(Map cfg) {
@@ -55,7 +64,8 @@ private String argocdArgs(Map cfg) {
         args << "--server ${ConfigValidator.shellQuote(cfg.server as String)}"
     }
 
-    if (cfg.tokenCredentialsId?.toString()?.trim()) {
+    boolean hasEnvToken = env.ARGOCD_AUTH_TOKEN?.trim() || env.ARGOCD_TOKEN?.trim()
+    if (cfg.tokenCredentialsId?.toString()?.trim() || cfg.token?.toString()?.trim() || cfg.authToken?.toString()?.trim() || hasEnvToken) {
         args << '--auth-token "$ARGOCD_AUTH_TOKEN"'
     }
 
@@ -68,4 +78,15 @@ private String argocdArgs(Map cfg) {
     }
 
     return args.join(' ')
+}
+
+private void runWithOptionalStage(Map cfg, Closure body) {
+    if (cfg.wrapStage == null || cfg.wrapStage.toString().toBoolean()) {
+        stage(cfg.stageName as String) {
+            body.call()
+        }
+        return
+    }
+
+    body.call()
 }

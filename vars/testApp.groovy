@@ -1,6 +1,7 @@
 def call(Map config = [:]) {
     Map cfg = [
         stageName: 'Test App',
+        wrapStage: true,
         language: 'auto',
         commands: null,
         junitPattern: '',
@@ -9,7 +10,7 @@ def call(Map config = [:]) {
 
     ConfigValidator.requireUnix(this, 'testApp')
 
-    stage(cfg.stageName as String) {
+    Closure body = {
         List commands = cfg.commands
             ? ConfigValidator.normalizeList(cfg.commands)
             : LanguageStrategy.testCommands(this, cfg)
@@ -21,6 +22,8 @@ def call(Map config = [:]) {
                 testResults: cfg.junitPattern as String
         }
     }
+
+    runWithOptionalStage(cfg, body)
 }
 
 private void runCommands(List commands) {
@@ -31,4 +34,15 @@ private void runCommands(List commands) {
     commands.each { command ->
         sh command
     }
+}
+
+private void runWithOptionalStage(Map cfg, Closure body) {
+    if (cfg.wrapStage == null || cfg.wrapStage.toString().toBoolean()) {
+        stage(cfg.stageName as String) {
+            body.call()
+        }
+        return
+    }
+
+    body.call()
 }

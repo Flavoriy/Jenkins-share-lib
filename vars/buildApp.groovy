@@ -1,6 +1,7 @@
 def call(Map config = [:]) {
     Map cfg = [
         stageName: 'Clean Install and Build',
+        wrapStage: true,
         language: 'auto',
         commands: null,
         skipTests: false
@@ -8,13 +9,15 @@ def call(Map config = [:]) {
 
     ConfigValidator.requireUnix(this, 'buildApp')
 
-    stage(cfg.stageName as String) {
+    Closure body = {
         List commands = cfg.commands
             ? ConfigValidator.normalizeList(cfg.commands)
             : LanguageStrategy.buildCommands(this, cfg)
 
         runCommands(commands)
     }
+
+    runWithOptionalStage(cfg, body)
 }
 
 private void runCommands(List commands) {
@@ -25,4 +28,15 @@ private void runCommands(List commands) {
     commands.each { command ->
         sh command
     }
+}
+
+private void runWithOptionalStage(Map cfg, Closure body) {
+    if (cfg.wrapStage == null || cfg.wrapStage.toString().toBoolean()) {
+        stage(cfg.stageName as String) {
+            body.call()
+        }
+        return
+    }
+
+    body.call()
 }
